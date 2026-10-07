@@ -41,6 +41,9 @@ export default function PedidosPage() {
   const [cantidadInput, setCantidadInput] = useState("1");
   const [estadoDestinoReverso, setEstadoDestinoReverso] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState("");
+  // Estados para el candado de seguridad
+  const [mostrarModalPin, setMostrarModalPin] = useState(false);
+  const [estadoDestinoReversion, setEstadoDestinoReversion] = useState("");
 
   // Cargar lista general de pedidos al abrir la página
   useEffect(() => {
@@ -103,6 +106,36 @@ export default function PedidosPage() {
     } catch (error: any) {
       alert(error.message);
     }
+  };
+
+  // 1. Prepara la reversión y abre el modal seguro
+  const solicitarReversion = (estadoActual: string) => {
+    let estadoAnterior = "";
+    if (estadoActual === 'PREPARADO') estadoAnterior = 'PENDIENTE';
+    if (estadoActual === 'ENTREGADO') estadoAnterior = 'PREPARADO';
+
+    if (estadoAnterior) {
+      setEstadoDestinoReversion(estadoAnterior);
+      setMostrarModalPin(true);
+    }
+  };
+
+  // 2. Valida el PIN ingresado en nuestro modal
+  const confirmarPinYRevertir = () => {
+    if (pinInput === "1234") {
+      cambiarEstadoPedido(estadoDestinoReversion);
+      cerrarModalPin();
+    } else {
+      alert("PIN incorrecto. Operación cancelada.");
+      setPinInput(""); // Limpiamos el input para que lo intente de nuevo
+    }
+  };
+
+  // 3. Limpia la pantalla si se cancela
+  const cerrarModalPin = () => {
+    setMostrarModalPin(false);
+    setPinInput("");
+    setEstadoDestinoReversion("");
   };
 
   const agregarAlCarrito = () => {
@@ -341,83 +374,39 @@ export default function PedidosPage() {
                 </ul>
               </div>
 
-<div className="flex justify-between items-center mt-6 border-t pt-4">
-                {/* Lado Izquierdo: Botones de Reversión (Solo visibles si se puede retroceder) */}
-                <div>
-                  {pedidoSeleccionado.status === 'PREPARADO' && (
-                    <button 
-                      onClick={() => setEstadoDestinoReverso('PENDIENTE')}
-                      className="text-sm text-red-600 hover:text-red-800 underline font-medium"
-                    >
-                      ← Revertir a Pendiente (Requiere Autorización)
-                    </button>
-                  )}
-                  {pedidoSeleccionado.status === 'ENTREGADO' && (
-                    <button 
-                      onClick={() => setEstadoDestinoReverso('PREPARADO')}
-                      className="text-sm text-red-600 hover:text-red-800 underline font-medium"
-                    >
-                      ← Revertir a Preparado (Requiere Autorización)
-                    </button>
-                  )}
-                </div>
-
-                {/* Lado Derecho: Botones Normales de Avance */}
-                <div className="flex gap-3">
-                  <button onClick={cerrarTicket} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium">
-                    Cerrar
+<div className="flex justify-end gap-3 mt-6 items-center">
+                {/* Botón de retroceso (Solo visible si ya no es PENDIENTE) */}
+                {pedidoSeleccionado.status !== 'PENDIENTE' && (
+                  <button 
+                    onClick={() => solicitarReversion(pedidoSeleccionado.status)}
+                    className="mr-auto text-sm text-red-600 hover:text-red-800 font-bold underline decoration-red-300 underline-offset-4"
+                  >
+                    « Deshacer estado
                   </button>
-                  
-                  {pedidoSeleccionado.status === 'PENDIENTE' && (
-                    <button 
-                      onClick={() => cambiarEstadoPedido('PREPARADO')}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold shadow-sm"
-                    >
-                      Marcar como Preparado
-                    </button>
-                  )}
+                )}
 
-                  {pedidoSeleccionado.status === 'PREPARADO' && (
-                    <button 
-                      onClick={() => cambiarEstadoPedido('ENTREGADO')}
-                      className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-bold shadow-sm"
-                    >
-                      Confirmar Entrega
-                    </button>
-                  )}
-                </div>
+                <button onClick={cerrarTicket} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium">
+                  Cerrar
+                </button>
+                
+                {pedidoSeleccionado.status === 'PENDIENTE' && (
+                  <button 
+                    onClick={() => cambiarEstadoPedido('PREPARADO')}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold shadow-sm transition-colors"
+                  >
+                    Marcar como Preparado
+                  </button>
+                )}
+
+                {pedidoSeleccionado.status === 'PREPARADO' && (
+                  <button 
+                    onClick={() => cambiarEstadoPedido('ENTREGADO')}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-bold shadow-sm transition-colors"
+                  >
+                    Confirmar Entrega
+                  </button>
+                )}
               </div>
-
-              {/* Mini Modal para ingresar el PIN si se solicitó un reverso */}
-              {estadoDestinoReverso && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center justify-between animate-fade-in">
-                  <div>
-                    <p className="text-red-800 font-bold">Autorización Requerida</p>
-                    <p className="text-sm text-red-600">Ingresa el PIN de la dueña para revertir este ticket.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <input 
-                      type="password" 
-                      placeholder="PIN" 
-                      className="w-24 border border-red-300 rounded-md px-3 py-1 text-center font-bold text-gray-900"
-                      value={pinInput}
-                      onChange={(e) => setPinInput(e.target.value)}
-                    />
-                    <button 
-                      onClick={() => cambiarEstadoPedido(estadoDestinoReverso, pinInput)}
-                      className="bg-red-600 text-white px-4 py-1 rounded-md font-bold hover:bg-red-700"
-                    >
-                      Autorizar
-                    </button>
-                    <button 
-                      onClick={() => { setEstadoDestinoReverso(null); setPinInput(""); }}
-                      className="text-gray-600 px-2 py-1 underline text-sm"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -510,6 +499,42 @@ export default function PedidosPage() {
                 className="px-6 py-2 bg-green-600 text-white rounded-md font-bold text-lg disabled:bg-gray-400 hover:bg-green-700 shadow-sm"
               >
                 Generar Pedido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal de Seguridad (Manager Override) */}
+      {mostrarModalPin && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+              <span className="text-red-600 text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-lg leading-6 font-bold text-gray-900 mb-2">Autorización Requerida</h3>
+            <p className="text-sm text-gray-500 mb-4">Ingresa el PIN de la dueña para revertir el estado de este pedido.</p>
+            
+            <input 
+              type="password" 
+              maxLength={4}
+              className="w-32 text-center text-2xl tracking-widest border border-gray-400 rounded-md px-3 py-2 text-gray-900 font-bold mb-6"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmarPinYRevertir()}
+              placeholder="••••"
+              autoFocus
+            />
+
+            <div className="flex justify-center gap-3">
+              <button onClick={cerrarModalPin} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium">
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmarPinYRevertir} 
+                className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-bold shadow-sm"
+              >
+                Autorizar
               </button>
             </div>
           </div>
