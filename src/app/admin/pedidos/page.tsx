@@ -39,11 +39,14 @@ export default function PedidosPage() {
   const [carrito, setCarrito] = useState<any[]>([]);
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [cantidadInput, setCantidadInput] = useState("1");
-  const [estadoDestinoReverso, setEstadoDestinoReverso] = useState<string | null>(null);
+  const [estadoDestinoReverso, setEstadoDestinoReverso] = useState<
+    string | null
+  >(null);
   const [pinInput, setPinInput] = useState("");
   // Estados para el candado de seguridad
   const [mostrarModalPin, setMostrarModalPin] = useState(false);
   const [estadoDestinoReversion, setEstadoDestinoReversion] = useState("");
+  const [tipoAccion, setTipoAccion] = useState(""); // NUEVO: "revertir" o "cancelar"
 
   // Cargar lista general de pedidos al abrir la página
   useEffect(() => {
@@ -83,11 +86,14 @@ export default function PedidosPage() {
     if (!pedidoSeleccionado) return;
 
     try {
-      const respuesta = await fetch(`http://localhost:3000/pedidos/${pedidoSeleccionado.idPedido}/estado`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nuevoEstado, pin: pin }), // Enviamos el PIN al backend
-      });
+      const respuesta = await fetch(
+        `http://localhost:3000/pedidos/${pedidoSeleccionado.idPedido}/estado`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: nuevoEstado, pin: pin }), // Enviamos el PIN al backend
+        },
+      );
 
       if (!respuesta.ok) {
         const errorData = await respuesta.json();
@@ -95,47 +101,88 @@ export default function PedidosPage() {
       }
 
       alert(`¡El pedido ha sido actualizado a ${nuevoEstado}!`);
-      
+
       cerrarTicket();
       setEstadoDestinoReverso(null);
       setPinInput("");
-      
+
       const resPedidos = await fetch("http://localhost:3000/pedidos");
       setPedidos(await resPedidos.json());
-
     } catch (error: any) {
       alert(error.message);
     }
   };
 
   // 1. Prepara la reversión y abre el modal seguro
+  // 1. Prepara la reversión
   const solicitarReversion = (estadoActual: string) => {
     let estadoAnterior = "";
-    if (estadoActual === 'PREPARADO') estadoAnterior = 'PENDIENTE';
-    if (estadoActual === 'ENTREGADO') estadoAnterior = 'PREPARADO';
+    if (estadoActual === "PREPARADO") estadoAnterior = "PENDIENTE";
+    if (estadoActual === "ENTREGADO") estadoAnterior = "PREPARADO";
 
     if (estadoAnterior) {
       setEstadoDestinoReversion(estadoAnterior);
+      setTipoAccion("revertir");
       setMostrarModalPin(true);
     }
   };
 
-  // 2. Valida el PIN ingresado en nuestro modal
-  const confirmarPinYRevertir = () => {
-    if (pinInput === "1234") {
-      cambiarEstadoPedido(estadoDestinoReversion);
-      cerrarModalPin();
-    } else {
-      alert("PIN incorrecto. Operación cancelada.");
-      setPinInput(""); // Limpiamos el input para que lo intente de nuevo
+  // 2. Prepara la cancelación
+  const solicitarCancelacion = () => {
+    setTipoAccion("cancelar");
+    setMostrarModalPin(true);
+  };
+
+  // 3. Ejecuta la cancelación real contra el Backend
+  const procesarCancelacion = async () => {
+    if (!pedidoSeleccionado) {
+      alert("No hay un pedido seleccionado para cancelar.");
+      return;
+    }
+
+    try {
+      const respuesta = await fetch(
+        `http://localhost:3000/pedidos/${pedidoSeleccionado.idPedido}/cancelar`,
+        {
+          method: "PATCH",
+        },
+      );
+
+      if (!respuesta.ok) throw new Error("Error al cancelar el pedido");
+
+      alert("¡Pedido cancelado y stock devuelto al inventario exitosamente!");
+      cerrarTicket();
+
+      // Recargar la tabla principal
+      const resPedidos = await fetch("http://localhost:3000/pedidos");
+      setPedidos(await resPedidos.json());
+    } catch (error) {
+      console.error(error);
+      alert("Hubo un problema al cancelar el pedido.");
     }
   };
 
-  // 3. Limpia la pantalla si se cancela
+  // 4. El "Cerebro" del Modal de Seguridad
+  const confirmarPinYEjecutar = () => {
+    if (pinInput === "1234") {
+      if (tipoAccion === "revertir") {
+        cambiarEstadoPedido(estadoDestinoReversion);
+      } else if (tipoAccion === "cancelar") {
+        procesarCancelacion();
+      }
+      cerrarModalPin();
+    } else {
+      alert("PIN incorrecto. Operación cancelada.");
+      setPinInput("");
+    }
+  };
+
+  // 5. Limpia todo al cerrar
   const cerrarModalPin = () => {
     setMostrarModalPin(false);
     setPinInput("");
     setEstadoDestinoReversion("");
+    setTipoAccion("");
   };
 
   const agregarAlCarrito = () => {
@@ -301,10 +348,18 @@ export default function PedidosPage() {
                   ${Number(pedido.total).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${pedido.status === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-800' : 
-                      pedido.status === 'PREPARADO' ? 'bg-blue-100 text-blue-800' : 
-                      pedido.status === 'ENTREGADO' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                  <span
+                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    ${
+                      pedido.status === "PENDIENTE"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : pedido.status === "PREPARADO"
+                          ? "bg-blue-100 text-blue-800"
+                          : pedido.status === "ENTREGADO"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
                     {pedido.status}
                   </span>
                 </td>
@@ -375,13 +430,23 @@ export default function PedidosPage() {
               </div>
 
 <div className="flex justify-end gap-3 mt-6 items-center">
-                {/* Botón de retroceso (Solo visible si ya no es PENDIENTE) */}
-                {pedidoSeleccionado.status !== 'PENDIENTE' && (
+                {/* Botón de retroceso */}
+                {pedidoSeleccionado.status !== 'PENDIENTE' && pedidoSeleccionado.status !== 'CANCELADO' && (
                   <button 
                     onClick={() => solicitarReversion(pedidoSeleccionado.status)}
                     className="mr-auto text-sm text-red-600 hover:text-red-800 font-bold underline decoration-red-300 underline-offset-4"
                   >
                     « Deshacer estado
+                  </button>
+                )}
+
+                {/* Nuevo Botón de Cancelación */}
+                {pedidoSeleccionado.status !== 'CANCELADO' && pedidoSeleccionado.status !== 'ENTREGADO' && (
+                  <button 
+                    onClick={solicitarCancelacion}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 font-bold transition-colors"
+                  >
+                    Cancelar Pedido
                   </button>
                 )}
 
@@ -504,7 +569,7 @@ export default function PedidosPage() {
           </div>
         </div>
       )}
-      
+
       {/* Modal de Seguridad (Manager Override) */}
       {mostrarModalPin && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[60]">
@@ -512,16 +577,20 @@ export default function PedidosPage() {
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
               <span className="text-red-600 text-2xl">⚠️</span>
             </div>
-            <h3 className="text-lg leading-6 font-bold text-gray-900 mb-2">Autorización Requerida</h3>
-            <p className="text-sm text-gray-500 mb-4">Ingresa el PIN de la dueña para revertir el estado de este pedido.</p>
-            
+            <h3 className="text-lg leading-6 font-bold text-gray-900 mb-2">
+              Autorización Requerida
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Ingresa el PIN de la dueña para {tipoAccion === 'cancelar' ? 'cancelar definitivamente este pedido' : 'revertir el estado de este pedido'}.
+            </p>
+
             <input 
               type="password" 
               maxLength={4}
               className="w-32 text-center text-2xl tracking-widest border border-gray-400 rounded-md px-3 py-2 text-gray-900 font-bold mb-6"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && confirmarPinYRevertir()}
+              onKeyDown={(e) => e.key === 'Enter' && confirmarPinYEjecutar()}
               placeholder="••••"
               autoFocus
             />
@@ -531,7 +600,7 @@ export default function PedidosPage() {
                 Cancelar
               </button>
               <button 
-                onClick={confirmarPinYRevertir} 
+                onClick={confirmarPinYEjecutar} 
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-bold shadow-sm"
               >
                 Autorizar
