@@ -97,6 +97,19 @@ export default function AdminLayout({
                     Inventario
                   </Link>
                 )}
+
+                {/* Enlace al Panel de Personal (Solo ADMIN) */}
+                {usuario?.tipoUsuario === 'ADMIN' && (
+                  <Link 
+                    href="/admin/empleados" 
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      pathname.includes('/empleados') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    Personal
+                  </Link>
+                )}
+                
               </nav>
             </div>
 
